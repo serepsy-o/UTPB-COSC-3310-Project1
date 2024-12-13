@@ -47,15 +47,11 @@ public class UInt {
             bits[b] = i % 2 == 1;
             // Right shift the integer to process the next bit.
             i = i >> 1;
+        }
 
-            // Deprecated analog method
-            /*int p = 0;
-            while (Math.pow(2, p) < i) {
-                p++;
-            }
-            p--;
-            bits[p] = true;
-            i -= Math.pow(2, p);*/
+        // make sure boolean array always begins with a leading 0
+        if (bits[0]) {
+            this.padWithLeadingZeroes(1);
         }
     }
 
@@ -165,23 +161,31 @@ public class UInt {
     }
 
     public void or(UInt u) {
-        // TODO Complete the bitwise logical OR method
-        return;
+        for (int i = 0; i < Math.min(this.length, u.length); i++) {
+            this.bits[this.length - i - 1] =
+                    this.bits[this.length - i - 1] ||
+                            u.bits[u.length - i - 1];
+        }
     }
 
     public static UInt or(UInt a, UInt b) {
-        // TODO Complete the static OR method
-        return null;
+        UInt temp = a.clone();
+        temp.or(b);
+        return temp;
     }
 
     public void xor(UInt u) {
-        // TODO Complete the bitwise logical XOR method
-        return;
+        for (int i = 0; i < Math.min(this.length, u.length); i++) {
+            this.bits[this.length - i - 1] =
+                    this.bits[this.length - i - 1] ^
+                            u.bits[u.length - i - 1];
+        }
     }
 
     public static UInt xor(UInt a, UInt b) {
-        // TODO Complete the static XOR method
-        return null;
+        UInt temp = a.clone();
+        temp.xor(b);
+        return temp;
     }
 
     public void add(UInt u) {
@@ -190,29 +194,148 @@ public class UInt {
         // You will likely need to create a couple of helper methods for this.
         // Note this one, like the bitwise ops, also needs to be aligned on the 1s place.
         // Also note this may require increasing the length of this.bits to contain the result.
-        return;
+
+        // sum stores the sum of this.bits and u.bits
+        // its length is the largest len between this and u (+1 for possible carry bit overflow)
+        int trueCount = 0;
+        int diffInLengths;
+        int maxLength = (Math.max(this.length, u.length)) + 1;
+        boolean[] sum = new boolean[maxLength];
+        boolean carry = false;
+        UInt uTemp = u.clone(); // avoid altering 'u' directly
+
+        // pad the shorter array with leading false(s)/zeroes
+        if(this.length > u.length) {
+            diffInLengths = this.length - u.length;
+            uTemp.padWithLeadingZeroes(diffInLengths);
+        }
+        else { // (this.length < u.length)
+            diffInLengths = u.length - this.length;
+            this.padWithLeadingZeroes(diffInLengths);
+        }
+
+        for(int i = 0; i < maxLength - 1; i++) {
+            //
+            sum[maxLength - i - 1] = uTemp.bits[uTemp.length - i - 1] ^ this.bits[this.length - i - 1] ^ carry;
+
+            // for each true value, count + 1
+            trueCount = 0;
+            trueCount = (uTemp.bits[uTemp.length - i - 1] ? 1 : 0) +
+                    (this.bits[uTemp.length - i - 1] ? 1 : 0) +
+                    (carry ? 1 : 0);
+
+            // if > 1 value is true, next carry is true
+            carry = trueCount > 1;
+        }
+
+        // handle possible last carry bit
+        if(carry) {
+            sum[1] = true; // in index [1] b/c [0] should be a leading false/0
+        }
+
+        // this.bits = new boolean[maxLength];
+        this.length = maxLength;
+        this.bits = sum;
     }
 
     public static UInt add(UInt a, UInt b) {
-        // TODO A static change-safe version of add, should return a temp UInt object like the bitwise ops.
-        return null;
+        UInt temp = a.clone();
+        temp.add(b);
+        return temp;
+    }
+
+    // same as add() method but ignores final carry bit (for mul() & sub() method)
+    public void add_IgnoreFinalCarry(UInt u) {
+        int trueCount = 0;
+        int diffInLengths;
+        int maxLength = (Math.max(this.length, u.length));
+        boolean[] sum = new boolean[maxLength];
+        boolean carry = false;
+
+        // pad the shorter array with leading false(s)/zeroes
+        if(this.length > u.length) {
+            diffInLengths = this.length - u.length;
+            u.padWithLeadingZeroes(diffInLengths);
+        }
+        else { // (this.length < u.length)
+            diffInLengths = u.length - this.length;
+            this.padWithLeadingZeroes(diffInLengths);
+        }
+
+        for(int i = 0; i < maxLength; i++) {
+            sum[maxLength - i - 1] = u.bits[u.length - i - 1] ^ this.bits[this.length - i - 1] ^ carry;
+
+            // for each true value, count + 1
+            trueCount = 0;
+            trueCount += (u.bits[u.length - i - 1] ? 1 : 0);
+            trueCount += (this.bits[u.length - i - 1] ? 1 : 0);
+            trueCount += (carry ? 1 : 0);
+
+            // if > 1 value is true, next carry is true
+            carry = trueCount > 1;
+        }
+
+        // this.bits = new boolean[maxLength];
+        this.length = maxLength;
+        this.bits = sum;
+    }
+
+    public static UInt add_IgnoreFinalCarry(UInt a, UInt b) {
+        UInt temp = a.clone();
+        temp.add_IgnoreFinalCarry(b);
+        return temp;
     }
 
     public void negate() {
         // TODO You'll need a way to perform 2's complement negation
         // The add() method will be helpful with this.
+
+        int firstTrueIndex;
+
+        // Loop through this.bits array, Every index = !index (flip all the bits/negate)
+        for(int i = 0; i < this.length; i++) {
+            this.bits[i] = !this.bits[i];
+        }
+
+        // Add 1 using add() method to satisfy 2's complement
+        this.add_IgnoreFinalCarry(new UInt(1));
     }
 
     public void sub(UInt u) {
         // TODO Using negate() and add(), perform in-place subtraction
         // As this class is supposed to handle only unsigned values,
         //   if the result of the subtraction operation would be a negative number then it should be coerced to 0.
-        return;
+        int thisInt = this.toInt();
+        int uInt = u.toInt();
+        int diffInLengths;
+        UInt tempU = u.clone();
+
+        // pad the shorter array with leading false(s)/zeroes
+        if(this.length > u.length) {
+            diffInLengths = this.length - u.length;
+            tempU.padWithLeadingZeroes(diffInLengths);
+        }
+        else { // (this.length < u.length)
+            diffInLengths = u.length - this.length;
+            this.padWithLeadingZeroes(diffInLengths);
+        }
+
+        tempU.negate();
+
+        // Add the two together using add()
+        this.add_IgnoreFinalCarry(tempU);
+
+        // Coerce answer to 0 if it would be negative
+        if((thisInt - uInt) < 0) {
+            this.length = 1;
+            this.bits[0] = false;
+        }
     }
 
     public static UInt sub(UInt a, UInt b) {
-        // TODO And a static change-safe version of sub
-        return null;
+        UInt temp = a.clone();
+        temp.sub(b);
+        return temp;
     }
 
     public void mul(UInt u) {
@@ -222,11 +345,93 @@ public class UInt {
         // Also note the Booth's always treats binary values as if they are signed,
         //   while this class is only intended to use unsigned values.
         // This means that you may need to pad your bits array with a leading 0 if it's not already long enough.
-        return;
+        int diffInLengths;
+        int ASP_length;
+        int numCycles; // Number of booth's algorithm cycles necessary to satisfy the algorithm
+        // based on length of largest binary value
+        UInt m = this.clone();
+        UInt m_negated = this.clone();
+        m_negated.negate();
+        UInt r = u.clone();
+
+        // Compare both this. and u. lengths - whichever one is longer, pad shorter one
+        // pad the shorter array with leading false(s)/zeroes
+        if(m.length > r.length) {
+            diffInLengths = m.length - r.length;
+            r.padWithLeadingZeroes(diffInLengths);
+        }
+        else { // (this.length < u.length)
+            diffInLengths = r.length - m.length;
+            m.padWithLeadingZeroes(diffInLengths);
+            m_negated.padWithLeadingZeroes(diffInLengths);
+        }
+
+        numCycles = m.length;
+        ASP_length = (m.length * 2) + 1;
+
+        UInt A = new UInt(1);
+        A.length = ASP_length;
+        A.bits = new boolean[ASP_length];
+        System.arraycopy(m.bits, 0, A.bits, 0, numCycles);
+
+        UInt S = new UInt(1);
+        S.length = ASP_length;
+        S.bits = new boolean[ASP_length];
+        System.arraycopy(m_negated.bits, 0, S.bits, 0, numCycles);
+
+        UInt P = new UInt(1);
+        P.length = ASP_length;
+        P.bits = new boolean[ASP_length];
+        System.arraycopy(r.bits, 0, P.bits, ASP_length - numCycles - 1, numCycles);
+
+        int lastBit = ASP_length - 1;
+        int secondToLastBit = ASP_length - 2;
+
+        for(int i = 0; i < numCycles; i++) {
+            // check last 2 bits of current P, 01 -> add A, 10 -> add S. 11 or 00 -> nothing
+            if(P.bits[secondToLastBit] && !P.bits[lastBit]) {
+                P.add_IgnoreFinalCarry(S);
+            }
+            else if(!P.bits[secondToLastBit] && P.bits[lastBit]) {
+                P.add_IgnoreFinalCarry(A);
+            }
+            // final step of each cycle is an arithmetic shift right
+            P.arithmeticShiftRight();
+        }
+        // Ignore the very last bit per Booth's algorithm rules
+        boolean[] product = new boolean[ASP_length];
+        System.arraycopy(P.bits, 0, product, 1, ASP_length - 1);
+
+        this.length = ASP_length;
+        this.bits = product;
     }
 
     public static UInt mul(UInt a, UInt b) {
-        // TODO A static, change-safe version of mul
-        return null;
+        UInt temp = a.clone();
+        temp.mul(b);
+        return temp;
+    }
+
+    public void padWithLeadingZeroes(int numZeroes) {
+        int newLen = this.length + numZeroes;
+        boolean[] paddedBits = new boolean[newLen];
+
+        System.arraycopy(this.bits, 0, paddedBits, numZeroes, this.length);
+
+        this.length = newLen;
+        this.bits = paddedBits;
+    }
+
+    public void arithmeticShiftRight() {
+        // an arithmetic shift right maintains the sign bit with the shift
+        // necessary for mul() method to follow Booth's algorithm
+
+        // current index = previous index
+        for(int i = this.length - 1; i > 0; i--) {
+            this.bits[i] = this.bits[i - 1];
+        }
+
+        // preserve value at original index 0
+        this.bits[0] = this.bits[1];
     }
 }
